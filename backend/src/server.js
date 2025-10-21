@@ -15,7 +15,7 @@ app.use('/api', uploadRouter);
 app.use('/api', convertRouter); // 추가
 //app.use('/api', resultRouter); // 추가
 app.use('/api/review', reviewRoutes);
-app.use('/api/review-sessions/:sid/llm-fill', reviewRoutes);
+//app.use('/api/review-sessions/:sid/llm-fill', reviewRoutes);
 
 app.use(cors());
 

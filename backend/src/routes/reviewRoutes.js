@@ -237,33 +237,36 @@ router.get('/sessions/:sid/items/:iid/crop', async (req, res) => {
  }
 });
 
-router.get('/review/sessions/:sid/download', (req, res) => {
- const { sid } = req.params;
- const session = loadSession(sid);
- if (!session) return res.status(404).json({ error: 'session not found' });
+router.get('/sessions/:sid/download', (req, res) => {
+ try {
+  const { sid } = req.params;
+  const session = loadSession(sid);
+  if (!session) return res.status(404).json({ error: 'session not found' });
 
- const rows = (session.items || []).map(it => ({
-  id: it.id,
-  row: it.row,
-  column: it.column,
-  raw_name: it.raw_name || '',
-  selected: it.selected || '',
-  shift: it.shift || '',
-  leave_type: it.leave_type || 'Unknown',
-  status: it.status || 'unresolved',
- }));
+  const rows = (session.items || []).map(it => ({
+   id: it.id,
+   row: it.row,
+   column: it.column,
+   raw_name: it.raw_name || '',
+   selected: it.selected || '',
+   shift: it.shift || '',
+   leave_type: it.leave_type || 'Unknown',
+   status: it.status || 'unresolved',
+   resolvedAt: it.resolvedAt || ''
+  }));
 
- const wb = XLSX.utils.book_new();
- const ws = XLSX.utils.json_to_sheet(rows);
- XLSX.utils.book_append_sheet(wb, ws, 'Items');
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Items');
 
- const exportsDir = path.join(__dirname, '../../exports');
- if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir, { recursive: true });
-
- const outPath = path.join(exportsDir, `session_${sid}.xlsx`);
- XLSX.writeFile(wb, outPath);
-
- res.download(outPath, `timesheet_${sid}.xlsx`);
+  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="timesheet_${sid}.xlsx"`);
+  return res.send(buf);
+ } catch (e) {
+  console.error('download error:', e);
+  return res.status(500).json({ error: 'download failed', details: e.message });
+ }
 });
 
 // 후보 선택/수정(없으면 직원 명단 검색 결과로 선택)
@@ -303,6 +306,7 @@ router.patch('/sessions/:sid/items/:iid', (req, res) => {
 });
 
 // PATCH /api/review/sessions/:sid/items/:iid
+/*
 router.patch('/review/sessions/:sid/items/:iid', (req, res) => {
  const { sid, iid } = req.params;
  const { selected, leave_type } = req.body || {};
@@ -322,6 +326,7 @@ router.patch('/review/sessions/:sid/items/:iid', (req, res) => {
  saveSession(session); // 세션 저장 유틸
  return res.json(item);
 });
+*/
 
 // 직원 검색(오토컴플릿)
 router.get('/employees', (req, res) => {
