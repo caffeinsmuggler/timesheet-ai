@@ -603,6 +603,13 @@ function App() {
     ctx.clearRect(0, 0, natW, natH);
     ctx.drawImage(img, 0, 0, natW, natH);
 
+    // 이미 찍어둔 점 다시 그리기
+    ctx.fillStyle = 'red';
+    for (const c of corners) {
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 7, 0, 2 * Math.PI);
+    ctx.fill();
+    }
 
     // 표시된 코너 다시 찍기
     //ctx.fillStyle = 'red';
@@ -669,24 +676,23 @@ function App() {
 */
 
   if (corners.length >= 4) return;
-  const canvasElement = canvasRef.current;
-  const rect = canvasElement.getBoundingClientRect();
+ const canvasElement = canvasRef.current;
+ const rect = canvasElement.getBoundingClientRect();
 
-  const scaleX = canvasElement.width / rect.width;  // 내부/외부 비율
-  const scaleY = canvasElement.height / rect.height;
+ const scaleX = canvasElement.width / rect.width;  // 내부/외부 비율
+ const scaleY = canvasElement.height / rect.height;
 
-  const x = (event.clientX - rect.left) * scaleX;
-  const y = (event.clientY - rect.top) * scaleY;
+ const x = (event.clientX - rect.left) * scaleX;
+ const y = (event.clientY - rect.top) * scaleY;
 
-  const newCorners = [...corners, { x, y }];
-  setCorners(newCorners);
+ const newCorners = [...corners, { x, y }];
+ setCorners(newCorners);
 
-  // 시각 피드백
-  const ctx = canvasElement.getContext('2d');
-  ctx.fillStyle = 'red';
-  ctx.beginPath();
-  ctx.arc(x, y, 5, 0, 2 * Math.PI);
-  ctx.fill();
+ const ctx = canvasElement.getContext('2d');
+ ctx.fillStyle = 'red';
+ ctx.beginPath();
+ ctx.arc(x, y, 7, 0, 2 * Math.PI); // 반지름 7
+ ctx.fill();
 
  };
 
@@ -828,7 +834,7 @@ const runLLMFill = async () => {
        <p>표의 네 모서리를 순서대로 클릭하세요 ({corners.length}/4)</p>
        <canvas
         ref={canvasRef}
-        onClick={handleCanvasClick}
+        onPointerDown={handleCanvasClick}
         style={{ border: '1px solid black', cursor: 'crosshair', maxWidth: '100%' }}
        />
 
