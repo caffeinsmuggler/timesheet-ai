@@ -40,18 +40,13 @@ function CandidateRadios({ item, onSelect }) {
  const [suggest, setSuggest] = useState([]);
  const [loading, setLoading] = useState(false);
 
- // 모바일 기본 ON, 데스크톱은 OFF
- const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
- const [autoConfirm, setAutoConfirm] = useState(isMobile);
-
- const idleTimerRef = useRef(null);
-
  async function handleSearch(q) {
   setLoading(true);
   try {
    const u = new URLSearchParams();
    if (q) u.set('q', q);
    if (item.shift) u.set('shift', item.shift);
+   // API_BASE는 컴포넌트 상단에서 이미 처리됨: apiGet 내부가 API_BASE를 붙임
    const res = await apiGet(`/review/employees?${u.toString()}`);
    setSuggest(res.items || []);
   } catch (e) {
@@ -62,125 +57,101 @@ function CandidateRadios({ item, onSelect }) {
   }
  }
 
- function confirmSelect(name) {
+ function confirmSelect(e, name) {
+  if (e) e.stopPropagation();
   const v = (name ?? custom).trim();
   if (!v) return;
-  onSelect(v);    // ReviewTable.handleSelect → PATCH → status=resolved
-  setSuggest([]);  // 목록 닫기
+  onSelect(v); // ReviewTable.handleSelect → PATCH → status = 'resolved'
+  setSuggest([]);
  }
-
- function onInputChange(v) {
-  setCustom(v);
-  if (v.trim().length >= 1) handleSearch(v.trim());
-  else setSuggest([]);
-
-  // 자동 확정: 타이핑 멈추면 800ms 후 확정
-  if (autoConfirm) {
-   if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-   idleTimerRef.current = setTimeout(() => {
-    if (v.trim()) confirmSelect(v);
-   }, 800);
-  }
- }
-
- // onBlur로도 확정(제안 클릭을 위해 약간 지연)
- function onInputBlur() {
-  if (!autoConfirm) return;
-  setTimeout(() => {
-   if (custom.trim()) confirmSelect(custom);
-  }, 120);
- }
-
- useEffect(() => () => {
-  if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
- }, []);
 
  return (
-  <div style={{ minWidth: 240 }}>
+  <div style={{ minWidth: 240 }} onClick={(e)=>e.stopPropagation()}>
    {(item.candidates || []).map((c, i) => (
     <label key={i} style={{ display: 'block', marginBottom: 2 }}>
      <input
       type="radio"
       name={`cand-${item.id}`}
-      onChange={() => confirmSelect(c.name)}
+      onChange={(e) => confirmSelect(e, c.name)}
       checked={item.selected === c.name}
      />{' '}
      {c.name} ({c.confidence}%)
     </label>
    ))}
 
-   <div style={{ marginTop: 6 }}>
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-     <input
-      placeholder="직원 검색/직접 입력"
-      value={custom}
-      onChange={(e) => onInputChange(e.target.value)}
-      onBlur={onInputBlur}
-      onKeyDown={(e) => {
-       if (e.key === 'Enter' && custom.trim()) {
-        confirmSelect(custom.trim());
-       }
-      }}
-      style={{ width: 160 }}
-      autoComplete="off"
-      inputMode="text"
-     />
-     <button type="button" onClick={() => confirmSelect()} style={{ padding: '4px 8px' }}>
-      확정
-     </button>
-     <label style={{ fontSize: 12, color: '#555', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-      <input
-       type="checkbox"
-       checked={autoConfirm}
-       onChange={(e) => setAutoConfirm(e.target.checked)}
-      />
-      자동 확정
-     </label>
-     {loading && <div style={{ fontSize: 12, color: '#888' }}>검색 중…</div>}
-    </div>
-
-    {/* 모바일 호환을 위한 커스텀 제안 목록(datalist 대체) */}
-    {suggest.length > 0 && (
-     <div style={{ position: 'relative' }}>
-      <ul
-       style={{
-        position: 'absolute',
-        zIndex: 10,
-        background: '#fff',
-        border: '1px solid #ddd',
-        width: 220,
-        marginTop: 2,
-        maxHeight: 160,
-        overflowY: 'auto',
-        listStyle: 'none',
-        padding: 0
-       }}
-      >
-       {suggest.map((n, idx) => (
-        <li key={idx}>
-         <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()} // blur 전에 클릭 보장
-          onClick={() => confirmSelect(n)}
-          style={{
-           display: 'block',
-           width: '100%',
-           textAlign: 'left',
-           padding: '6px 8px',
-           background: 'white',
-           border: 'none',
-           borderBottom: '1px solid #eee',
-           cursor: 'pointer'
-          }}
-         >
-          {n}
-         </button>
-        </li>
-       ))}
-      </ul>
-     </div>
-    )}
+   <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+    <input
+     placeholder="직접 입력 또는 검색"
+     value={custom}
+     onClick={(e)=>e.stopPropagation()}
+     onChange={(e) => {
+      e.stopPropagation();
+      const v = e.target.value;
+      setCustom(v);
+      if (v.trim().length >= 1) handleSearch(v.trim());
+      else setSuggest([]);
+     }}
+     onKeyDown={(e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter' && custom.trim()) confirmSelect(e, custom.trim());
+     }}
+     style={{ width: 160 }}
+     autoComplete="off"
+     inputMode="text"
+    />
+    <button
+     type="button"
+     onClick={(e) => confirmSelect(e)}
+     disabled={!custom.trim()}
+     style={{ padding: '4px 8px' }}
+    >
+     확정
+    </button>
+    {loading && <div style={{ fontSize: 12, color: '#888' }}>검색 중…</div>}
    </div>
+
+   {/* 선택사항: 간단 제안 목록(모바일에서도 탭 → 즉시 확정) */}
+   {suggest.length > 0 && (
+    <div style={{ position: 'relative' }}>
+     <ul
+      style={{
+       position: 'absolute',
+       zIndex: 10,
+       background: '#fff',
+       border: '1px solid #ddd',
+       width: 220,
+       marginTop: 2,
+       maxHeight: 160,
+       overflowY: 'auto',
+       listStyle: 'none',
+       padding: 0
+      }}
+      onClick={(e)=>e.stopPropagation()}
+     >
+      {suggest.map((n, idx) => (
+       <li key={idx}>
+        <button
+         type="button"
+         onMouseDown={(e) => e.preventDefault()} // blur 전에 클릭 보장
+         onClick={(e) => confirmSelect(e, n)}
+         style={{
+          display: 'block',
+          width: '100%',
+          textAlign: 'left',
+          padding: '6px 8px',
+          background: 'white',
+          border: 'none',
+          borderBottom: '1px solid #eee',
+          cursor: 'pointer'
+         }}
+        >
+         {n}
+        </button>
+       </li>
+      ))}
+     </ul>
+    </div>
+   )}
   </div>
  );
 }
