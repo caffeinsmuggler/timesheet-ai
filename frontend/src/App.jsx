@@ -861,6 +861,9 @@ const runLLMFill = async () => {
         <span style={{ color: '#666' }}>{sessionId}</span>
         <button onClick={runLLMFill}>LLM 보정(자동 채우기)</button>
         <button onClick={finalizeSession}>완료 저장</button>
+        <button onClick={() => window.open(`${API_BASE}/review/sessions/${sessionId}/download`, '_blank')}>
+        엑셀 다운로드
+        </button>
         <button onClick={() => setStep('SELECT')}>← 돌아가기</button>
         </div>
 

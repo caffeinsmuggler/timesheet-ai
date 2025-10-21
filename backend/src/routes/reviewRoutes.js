@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
 const sharp = require('sharp');
 const { saveSession, loadSession, updateItem } = require('../llm/reviewSessionStore');
 const { buildReviewSessionFromProcessed, quadToRect } = require('../llm/reviewSessionBuilder');
@@ -236,6 +237,35 @@ router.get('/sessions/:sid/items/:iid/crop', async (req, res) => {
  }
 });
 
+router.get('/review/sessions/:sid/download', (req, res) => {
+ const { sid } = req.params;
+ const session = loadSession(sid);
+ if (!session) return res.status(404).json({ error: 'session not found' });
+
+ const rows = (session.items || []).map(it => ({
+  id: it.id,
+  row: it.row,
+  column: it.column,
+  raw_name: it.raw_name || '',
+  selected: it.selected || '',
+  shift: it.shift || '',
+  leave_type: it.leave_type || 'Unknown',
+  status: it.status || 'unresolved',
+ }));
+
+ const wb = XLSX.utils.book_new();
+ const ws = XLSX.utils.json_to_sheet(rows);
+ XLSX.utils.book_append_sheet(wb, ws, 'Items');
+
+ const exportsDir = path.join(__dirname, '../../exports');
+ if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir, { recursive: true });
+
+ const outPath = path.join(exportsDir, `session_${sid}.xlsx`);
+ XLSX.writeFile(wb, outPath);
+
+ res.download(outPath, `timesheet_${sid}.xlsx`);
+});
+
 // 후보 선택/수정(없으면 직원 명단 검색 결과로 선택)
 router.patch('/sessions/:sid/items/:iid', (req, res) => {
  try {
@@ -270,6 +300,27 @@ router.patch('/sessions/:sid/items/:iid', (req, res) => {
  console.error(e);
  res.status(500).json({ error: e.message });
  }
+});
+
+// PATCH /api/review/sessions/:sid/items/:iid
+router.patch('/review/sessions/:sid/items/:iid', (req, res) => {
+ const { sid, iid } = req.params;
+ const { selected, leave_type } = req.body || {};
+ const session = loadSession(sid); // 세션 로드 유틸
+ const item = session.items.find(x => x.id === iid);
+ if (!item) return res.status(404).json({ error: 'item not found' });
+
+ if (typeof selected === 'string' && selected.trim()) {
+  item.selected = selected.trim();
+  item.status = 'resolved';    // ← 확정 처리 핵심
+  item.resolvedAt = new Date().toISOString();
+ }
+ if (typeof leave_type === 'string') {
+  item.leave_type = leave_type;
+ }
+
+ saveSession(session); // 세션 저장 유틸
+ return res.json(item);
 });
 
 // 직원 검색(오토컴플릿)
