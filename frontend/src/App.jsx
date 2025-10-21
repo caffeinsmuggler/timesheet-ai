@@ -46,7 +46,7 @@ function CandidateRadios({ item, onSelect }) {
    const u = new URLSearchParams();
    if (q) u.set('q', q);
    if (item.shift) u.set('shift', item.shift);
-   const res = await apiGet(`/api/review/employees?${u.toString()}`);
+   const res = await apiGet(`/review/employees?${u.toString()}`);
    setSuggest(res.items || []);
   } catch (e) {
    console.error(e);
@@ -215,7 +215,7 @@ function ReviewPreview({ sessionId, data, selectedItem, onReOCRDone }) {
   try {
    const vertices = toVertices(finalRect);
    const updated = await apiPost(
-    `/api/review/sessions/${sessionId}/items/${selectedItem.id}/reocr`,
+    `/review/sessions/${sessionId}/items/${selectedItem.id}/reocr`,
     { vertices }
    );
    onReOCRDone?.(updated);
@@ -231,7 +231,7 @@ function ReviewPreview({ sessionId, data, selectedItem, onReOCRDone }) {
   if (!finalRect) return;
   try {
    const vertices = toVertices(finalRect);
-   const created = await apiPost(`/api/review/sessions/${sessionId}/items`, {
+   const created = await apiPost(`/review/sessions/${sessionId}/items`, {
     vertices,
     leave_type: addLeaveType,
     column: selectedItem?.column || manualColumn
@@ -249,7 +249,7 @@ function ReviewPreview({ sessionId, data, selectedItem, onReOCRDone }) {
   const name = manualName.trim();
   if (!name) return alert('이름을 입력하세요');
   try {
-   const created = await apiPost(`/api/review/sessions/${sessionId}/items`, {
+   const created = await apiPost(`/review/sessions/${sessionId}/items`, {
     raw_name: name,
     column: manualColumn,
     leave_type: addLeaveType
@@ -314,7 +314,7 @@ function ReviewPreview({ sessionId, data, selectedItem, onReOCRDone }) {
     onPointerDown={onPointerDown}
    >
     <img
-     src={`${API_BASE}/api/review/sessions/${sessionId}/image`}
+     src={`${API_BASE}/review/sessions/${sessionId}/image`}
      onLoad={onImgLoad}
      style={{ width: containerW, height: 'auto', display: 'block' }}
      alt="warped"
@@ -371,7 +371,7 @@ function ReviewPreview({ sessionId, data, selectedItem, onReOCRDone }) {
      <div style={{ marginTop: 6 }}>
       <img
        key={`${selectedItem.id}-${selectedItem.rev || 0}`}
-       src={`${API_BASE}/api/review/sessions/${sessionId}/items/${selectedItem.id}/crop?v=${selectedItem.rev || 0}`}
+       src={`${API_BASE}/review/sessions/${sessionId}/items/${selectedItem.id}/crop?v=${selectedItem.rev || 0}`}
        width={180}
        height="auto"
        alt="crop"
@@ -396,7 +396,7 @@ function ReviewTable({ sessionId, data, setData, selectedId, setSelectedId }) {
 
  async function handleSelect(item, name) {
   try {
-   const updated = await apiPatch(`/api/review/sessions/${sessionId}/items/${item.id}`, {
+   const updated = await apiPatch(`/review/sessions/${sessionId}/items/${item.id}`, {
     selected: name
    });
    setData((prev) => ({
@@ -443,7 +443,7 @@ function ReviewTable({ sessionId, data, setData, selectedId, setSelectedId }) {
          <td style={{ padding: '6px 4px' }}>
           <img
             key={`${item.id}-${item.rev || 0}`}
-            src={`${API_BASE}/api/review/sessions/${sessionId}/items/${item.id}/crop?v=${item.rev || 0}`}
+            src={`${API_BASE}/review/sessions/${sessionId}/items/${item.id}/crop?v=${item.rev || 0}`}
             width={140}
             height="auto"
             alt="crop"
@@ -462,7 +462,7 @@ function ReviewTable({ sessionId, data, setData, selectedId, setSelectedId }) {
             onChange={async (e) => {
             const v = e.target.value;
             try {
-            const updated = await apiPatch(`/api/review/sessions/${sessionId}/items/${item.id}`, { leave_type: v });
+            const updated = await apiPatch(`/review/sessions/${sessionId}/items/${item.id}`, { leave_type: v });
             setData(prev => ({
             ...prev,
             items: prev.items.map(it => it.id === item.id ? updated : it)
@@ -483,7 +483,7 @@ function ReviewTable({ sessionId, data, setData, selectedId, setSelectedId }) {
         e.stopPropagation();
         if (!confirm('이 항목을 삭제할까요?')) return;
         try {
-            await apiDelete(`/api/review/sessions/${sessionId}/items/${item.id}`);
+            await apiDelete(`/review/sessions/${sessionId}/items/${item.id}`);
             setData(prev => {
             const nextItems = prev.items.filter(it => it.id !== item.id);
             return { ...prev, items: nextItems };
@@ -507,7 +507,7 @@ function ReviewTable({ sessionId, data, setData, selectedId, setSelectedId }) {
         onClick={async (e) => {
         e.stopPropagation();
         try {
-        const updated = await apiPost(`/api/review/sessions/${sessionId}/items/${item.id}/clear`, {});
+        const updated = await apiPost(`/review/sessions/${sessionId}/items/${item.id}/clear`, {});
         setData(prev => ({
             ...prev,
             items: prev.items.map(it => it.id === item.id ? updated : it)
@@ -609,7 +609,7 @@ function App() {
  useEffect(() => {
   if (!sessionId) return;
   setLoadingSession(true);
-  apiGet(`/api/review/sessions/${sessionId}`)
+  apiGet(`/review/sessions/${sessionId}`)
    .then((data) => {
     setSessionData(data);
     // 처음 로드 시 첫 미확정 항목 자동 선택
@@ -680,7 +680,7 @@ function App() {
    const formData = new FormData();
    formData.append('file', selectedImage);
 
-   const uploadRes = await fetch(`${API_BASE}/api/upload`, {
+   const uploadRes = await fetch(`${API_BASE}/upload`, {
     method: 'POST',
     body: formData
    });
@@ -690,7 +690,7 @@ function App() {
    const fileId = uploadData.fileId;
 
    // 2) 변환
-   const convertRes = await fetch(`${API_BASE}/api/convert`, {
+   const convertRes = await fetch(`${API_BASE}/convert`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fileId, corners: scaledCorners })
@@ -701,7 +701,7 @@ function App() {
    console.log('Convert result:', convertData);
 
    // 3) 리뷰 세션 생성
-   const session = await apiPost('/api/review/sessions', { fileId });
+   const session = await apiPost('/review/sessions', { fileId });
    setSessionId(session.sessionId);
    setSelectedId(null); // 새 세션에 맞춰 초기화
    setStep('REVIEW');
@@ -713,7 +713,7 @@ function App() {
 
  const finalizeSession = async () => {
  try {
-  const r = await apiPost(`/api/review/sessions/${sessionId}/finalize`, {});
+  const r = await apiPost(`/review/sessions/${sessionId}/finalize`, {});
   alert(`최종 저장 완료!\n${r.finalPath}`);
  } catch (e) {
   alert(`최종 저장 실패: ${e.message}`);
@@ -722,7 +722,7 @@ function App() {
 
 const runLLMFill = async () => {
  try {
-  const r = await apiPost(`/api/review/sessions/${sessionId}/llm-fill`, {});
+  const r = await apiPost(`/review/sessions/${sessionId}/llm-fill`, {});
   if (r?.session) {
    setSessionData(r.session);
    // 첫 미확정 자동 선택 보정
