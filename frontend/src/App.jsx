@@ -569,36 +569,52 @@ function App() {
 
    img.onload = () => {
     // 고정 표시 크기
-    const displayWidth = 1050;
-    const displayHeight = 1400;
+    //const displayWidth = 1050;
+    //const displayHeight = 1400;
 
     // 실제 이미지 크기
-    const actualWidth = img.width;
-    const actualHeight = img.height;
+    //const actualWidth = img.width;
+    //const actualHeight = img.height;
 
     // 비율 계산
-    const scaleX = actualWidth / displayWidth;
-    const scaleY = actualHeight / displayHeight;
+    //const scaleX = actualWidth / displayWidth;
+    //const scaleY = actualHeight / displayHeight;
 
     // Canvas 크기 설정
-    canvasElement.width = displayWidth;
-    canvasElement.height = displayHeight;
+    //canvasElement.width = displayWidth;
+    //canvasElement.height = displayHeight;
 
     // 이미지 그리기 (축소/확대)
-    ctx.clearRect(0, 0, displayWidth, displayHeight);
-    ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+    //ctx.clearRect(0, 0, displayWidth, displayHeight);
+    //ctx.drawImage(img, 0, 0, displayWidth, displayHeight);
+
+    const natW = img.naturalWidth || img.width;
+    const natH = img.naturalHeight || img.height;
+
+    // 내부 좌표 = 실제 이미지 픽셀 좌표
+    canvasElement.width = natW;
+    canvasElement.height = natH;
+
+    // 화면은 반응형으로 축소(내부 좌표엔 영향 없음)
+    canvasElement.style.width = '100%';
+    canvasElement.style.height = 'auto';
+
+    const ctx = canvasElement.getContext('2d');
+    ctx.clearRect(0, 0, natW, natH);
+    ctx.drawImage(img, 0, 0, natW, natH);
+
 
     // 표시된 코너 다시 찍기
-    ctx.fillStyle = 'red';
-    for (const c of corners) {
-     ctx.beginPath();
-     ctx.arc(c.x, c.y, 5, 0, 2 * Math.PI);
-     ctx.fill();
-    }
+    //ctx.fillStyle = 'red';
+    //for (const c of corners) {
+     //ctx.beginPath();
+     //ctx.arc(c.x, c.y, 5, 0, 2 * Math.PI);
+     //ctx.fill();
+    //}
 
     // 비율 저장 (나중에 corners 변환용)
-    canvasElement.dataset.scaleX = scaleX;
-    canvasElement.dataset.scaleY = scaleY;
+    //canvasElement.dataset.scaleX = scaleX;
+    //canvasElement.dataset.scaleY = scaleY;
    };
 
    img.src = imageUrl;
@@ -637,7 +653,7 @@ function App() {
  };
 
  const handleCanvasClick = (event) => {
-  if (corners.length >= 4) return;
+  /* if (corners.length >= 4) return;
   const canvasElement = canvasRef.current;
   const rect = canvasElement.getBoundingClientRect();
   const x = event.clientX - rect.left;
@@ -650,6 +666,28 @@ function App() {
   ctx.beginPath();
   ctx.arc(x, y, 5, 0, 2 * Math.PI);
   ctx.fill();
+*/
+
+  if (corners.length >= 4) return;
+  const canvasElement = canvasRef.current;
+  const rect = canvasElement.getBoundingClientRect();
+
+  const scaleX = canvasElement.width / rect.width;  // 내부/외부 비율
+  const scaleY = canvasElement.height / rect.height;
+
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
+
+  const newCorners = [...corners, { x, y }];
+  setCorners(newCorners);
+
+  // 시각 피드백
+  const ctx = canvasElement.getContext('2d');
+  ctx.fillStyle = 'red';
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, 2 * Math.PI);
+  ctx.fill();
+
  };
 
  const handleResetCorners = () => {
@@ -660,7 +698,7 @@ function App() {
  };
 
  const handleTransform = async () => {
-  if (corners.length !== 4) {
+ /* if (corners.length !== 4) {
    alert('네 모서리를 모두 선택해주세요');
    return;
   }
@@ -709,6 +747,40 @@ function App() {
    console.error('Transform failed:', e);
    alert(`에러: ${e.message}`);
   }
+*/
+if (corners.length !== 4) {
+  alert('네 모서리를 모두 선택해주세요');
+  return;
+ }
+
+ try {
+  // 1) 업로드
+  const formData = new FormData();
+  formData.append('file', selectedImage);
+  const uploadRes = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+  const uploadData = await uploadRes.json();
+  if (!uploadRes.ok) throw new Error(uploadData?.error || 'upload failed');
+  const fileId = uploadData.fileId;
+
+  // 2) 변환(그대로 전송)
+  const payloadCorners = corners.map(({x,y}) => ({ x: Math.round(x), y: Math.round(y) }));
+  const convertRes = await fetch(`${API_BASE}/convert`, {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({ fileId, corners: payloadCorners })
+  });
+  const convertData = await convertRes.json();
+  if (!convertRes.ok) throw new Error(convertData?.error || 'convert failed');
+
+  // 3) 세션 생성
+  const session = await apiPost('/review/sessions', { fileId });
+  setSessionId(session.sessionId);
+  setSelectedId(null);
+  setStep('REVIEW');
+ } catch (e) {
+  console.error('Transform failed:', e);
+  alert(`에러: ${e.message}`);
+ }
  };
 
  const finalizeSession = async () => {
