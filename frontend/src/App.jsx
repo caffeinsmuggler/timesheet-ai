@@ -40,9 +40,11 @@ function CandidateRadios({ item, onSelect }) {
  const [suggest, setSuggest] = useState([]);
  const [loading, setLoading] = useState(false);
 
- // 모바일 여부와 자동 확정 옵션
+ // 모바일 기본 ON, 데스크톱은 OFF
  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
- const [autoConfirm, setAutoConfirm] = useState(isMobile); // 모바일 기본 ON
+ const [autoConfirm, setAutoConfirm] = useState(isMobile);
+
+ const idleTimerRef = useRef(null);
 
  async function handleSearch(q) {
   setLoading(true);
@@ -60,24 +62,38 @@ function CandidateRadios({ item, onSelect }) {
   }
  }
 
- // 입력 변경 시 제안 갱신 + (옵션) 제안과 정확히 일치하면 자동 확정
+ function confirmSelect(name) {
+  const v = (name ?? custom).trim();
+  if (!v) return;
+  onSelect(v);    // ReviewTable.handleSelect → PATCH → status=resolved
+  setSuggest([]);  // 목록 닫기
+ }
+
  function onInputChange(v) {
   setCustom(v);
   if (v.trim().length >= 1) handleSearch(v.trim());
   else setSuggest([]);
 
+  // 자동 확정: 타이핑 멈추면 800ms 후 확정
   if (autoConfirm) {
-   const hit = (suggest || []).some(n => n === v.trim());
-   if (hit) onSelect(v.trim()); // 제안을 탭하거나 완전 일치하면 즉시 확정
+   if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+   idleTimerRef.current = setTimeout(() => {
+    if (v.trim()) confirmSelect(v);
+   }, 800);
   }
  }
 
- // 포커스 아웃 시 자동 확정(모바일에서 엔터 없이 확정)
+ // onBlur로도 확정(제안 클릭을 위해 약간 지연)
  function onInputBlur() {
   if (!autoConfirm) return;
-  const v = custom.trim();
-  if (v) onSelect(v);
+  setTimeout(() => {
+   if (custom.trim()) confirmSelect(custom);
+  }, 120);
  }
+
+ useEffect(() => () => {
+  if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+ }, []);
 
  return (
   <div style={{ minWidth: 240 }}>
@@ -86,56 +102,84 @@ function CandidateRadios({ item, onSelect }) {
      <input
       type="radio"
       name={`cand-${item.id}`}
-      onChange={() => onSelect(c.name)}
+      onChange={() => confirmSelect(c.name)}
       checked={item.selected === c.name}
      />{' '}
      {c.name} ({c.confidence}%)
     </label>
    ))}
 
-   <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-    <input
-     placeholder="직원 검색/직접 입력"
-     value={custom}
-     onChange={(e) => onInputChange(e.target.value)}
-     onBlur={onInputBlur}
-     onKeyDown={async (e) => {
-      if (e.key === 'Enter' && custom.trim()) {
-       onSelect(custom.trim()); // 데스크톱에서도 Enter로 확정 가능(기존 동작 유지)
-       setSuggest([]);
-      }
-     }}
-     style={{ width: 160 }}
-     list={`emp-${item.id}`}
-     inputMode="text"
-    />
-    <datalist id={`emp-${item.id}`}>
-     {suggest.map((n, idx) => (
-      <option key={idx} value={n} />
-     ))}
-    </datalist>
-
-    {/* 수동 확정 버튼(모바일 핵심) */}
-    <button
-     onClick={() => {
-      const v = custom.trim();
-      if (v) onSelect(v);
-     }}
-     style={{ padding: '4px 8px' }}
-    >
-     확정
-    </button>
-
-    {/* 자동 확정 토글(원하면 끌 수 있게) */}
-    <label style={{ fontSize: 12, color: '#555', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+   <div style={{ marginTop: 6 }}>
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
      <input
-      type="checkbox"
-      checked={autoConfirm}
-      onChange={(e) => setAutoConfirm(e.target.checked)}
+      placeholder="직원 검색/직접 입력"
+      value={custom}
+      onChange={(e) => onInputChange(e.target.value)}
+      onBlur={onInputBlur}
+      onKeyDown={(e) => {
+       if (e.key === 'Enter' && custom.trim()) {
+        confirmSelect(custom.trim());
+       }
+      }}
+      style={{ width: 160 }}
+      autoComplete="off"
+      inputMode="text"
      />
-     자동 확정
-    </label>
-    {loading && <div style={{ fontSize: 12, color: '#888' }}>검색 중…</div>}
+     <button type="button" onClick={() => confirmSelect()} style={{ padding: '4px 8px' }}>
+      확정
+     </button>
+     <label style={{ fontSize: 12, color: '#555', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <input
+       type="checkbox"
+       checked={autoConfirm}
+       onChange={(e) => setAutoConfirm(e.target.checked)}
+      />
+      자동 확정
+     </label>
+     {loading && <div style={{ fontSize: 12, color: '#888' }}>검색 중…</div>}
+    </div>
+
+    {/* 모바일 호환을 위한 커스텀 제안 목록(datalist 대체) */}
+    {suggest.length > 0 && (
+     <div style={{ position: 'relative' }}>
+      <ul
+       style={{
+        position: 'absolute',
+        zIndex: 10,
+        background: '#fff',
+        border: '1px solid #ddd',
+        width: 220,
+        marginTop: 2,
+        maxHeight: 160,
+        overflowY: 'auto',
+        listStyle: 'none',
+        padding: 0
+       }}
+      >
+       {suggest.map((n, idx) => (
+        <li key={idx}>
+         <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()} // blur 전에 클릭 보장
+          onClick={() => confirmSelect(n)}
+          style={{
+           display: 'block',
+           width: '100%',
+           textAlign: 'left',
+           padding: '6px 8px',
+           background: 'white',
+           border: 'none',
+           borderBottom: '1px solid #eee',
+           cursor: 'pointer'
+          }}
+         >
+          {n}
+         </button>
+        </li>
+       ))}
+      </ul>
+     </div>
+    )}
    </div>
   </div>
  );
