@@ -103,7 +103,7 @@ function CandidateRadios({ item, onSelect }) {
      type="button"
      onClick={(e) => confirmSelect(e)}
      disabled={!custom.trim()}
-     style={{ padding: '4px 8px' }}
+     style={{ padding: '4px 8px', fontSize: 12, color: '#888' }}
     >
      확정
     </button>
@@ -921,6 +921,7 @@ const runLLMFill = async () => {
         엑셀 다운로드
         </button>
         <button onClick={() => setStep('SELECT')}>← 돌아가기</button>
+        {step === 'REVIEW' && sessionData && <AdminSettings />}
         </div>
 
      {loadingSession && <div>세션 로딩 중…</div>}

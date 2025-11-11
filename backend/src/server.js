@@ -5,6 +5,8 @@ const uploadRouter = require('./routes/upload');
 const convertRouter = require('./routes/convert');
 //const resultRouter = require('./routes/result'); // 추가
 const reviewRoutes = require('./routes/reviewRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+
 
 const app = express();
 app.use(cors());
@@ -16,7 +18,7 @@ app.use('/api', convertRouter); // 추가
 //app.use('/api', resultRouter); // 추가
 app.use('/api/review', reviewRoutes);
 //app.use('/api/review-sessions/:sid/llm-fill', reviewRoutes);
-
+app.use('/api/admin', adminRoutes);
 app.use(cors());
 
 const PORT = process.env.PORT || 4000;
